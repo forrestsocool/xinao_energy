@@ -1,0 +1,10 @@
+{
+  "name": "Xinao Energy Analysis",
+  "hacs": "1.6.0",
+  "domains": ["sensor"],
+  "iot_class": "Cloud Polling",
+  "homeassistant": "2023.1.0",
+  "zip_release": false,
+  "filename": false,
+  "render_readme": true
+}
