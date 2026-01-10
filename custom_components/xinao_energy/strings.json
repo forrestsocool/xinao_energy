@@ -1,0 +1,35 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Xinao Energy Analysis",
+        "description": "Configure your Xinao Energy account",
+        "data": {
+          "token": "Token",
+          "payment_no": "Payment Number",
+          "company_code": "Company Code",
+          "update_interval": "Update Interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Xinao Energy API",
+      "invalid_auth": "Invalid authentication credentials",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This payment number is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Xinao Energy Options",
+        "description": "Configure update settings",
+        "data": {
+          "update_interval": "Update Interval (minutes)"
+        }
+      }
+    }
+  }
+}

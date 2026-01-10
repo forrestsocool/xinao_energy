@@ -1,0 +1,12 @@
+{
+  "domain": "xinao_energy",
+  "name": "Xinao Energy Analysis",
+  "codeowners": ["@forrestsocool"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/forrestsocool/xinao_energy",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "requirements": [],
+  "version": "1.0.0"
+}
