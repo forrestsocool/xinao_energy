@@ -31,5 +31,82 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "余额",
+        "state_attributes": {
+          "last_month_balance": {
+            "name": "上月余额"
+          }
+        }
+      },
+      "arrears_amount": {
+        "name": "欠费金额"
+      },
+      "current_month_usage": {
+        "name": "本月用气量",
+        "state_attributes": {
+          "ladder_cycle": {
+            "name": "阶梯周期"
+          }
+        }
+      },
+      "current_month_cost": {
+        "name": "本月燃气费",
+        "state_attributes": {
+          "ladder_cycle": {
+            "name": "阶梯周期"
+          },
+          "estimated_cost": {
+            "name": "预估费用"
+          }
+        }
+      },
+      "total_gas_count": {
+        "name": "累计用气量"
+      },
+      "available_days": {
+        "name": "可用天数"
+      },
+      "daily_usage": {
+        "name": "每日用气量",
+        "state_attributes": {
+          "history": {
+            "name": "历史记录"
+          },
+          "total_days": {
+            "name": "总天数"
+          },
+          "average_usage": {
+            "name": "平均用量"
+          },
+          "max_usage": {
+            "name": "最大用量"
+          },
+          "min_usage": {
+            "name": "最小用量"
+          },
+          "total_usage": {
+            "name": "总用量"
+          }
+        }
+      },
+      "ladder_price": {
+        "name": "阶梯气价",
+        "state_attributes": {
+          "ladder_tiers": {
+            "name": "阶梯档位"
+          },
+          "total_tiers": {
+            "name": "档位数量"
+          },
+          "cycle_description": {
+            "name": "周期说明"
+          }
+        }
+      }
+    }
   }
 }

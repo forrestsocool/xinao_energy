@@ -70,7 +70,8 @@ class XinaoEnergySensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{sensor_type}"
-        self._attr_name = f"Xinao {sensor_info['name']}"
+        self._attr_translation_key = sensor_type
+        self._attr_has_entity_name = True
         self._attr_native_unit_of_measurement = sensor_info.get("unit")
         self._attr_icon = sensor_info.get("icon")
         self._sensor_type = sensor_type
@@ -159,7 +160,8 @@ class XinaoEnergyDailyUsageSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_daily_usage"
-        self._attr_name = "Xinao Daily Usage"
+        self._attr_translation_key = "daily_usage"
+        self._attr_has_entity_name = True
         self._attr_icon = "mdi:calendar-today"
         self._attr_native_unit_of_measurement = "m³"
 
@@ -229,7 +231,8 @@ class XinaoEnergyLadderPriceSensor(CoordinatorEntity, SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_ladder_price"
-        self._attr_name = "Xinao Ladder Price"
+        self._attr_translation_key = "ladder_price"
+        self._attr_has_entity_name = True
         self._attr_icon = "mdi:stairs"
         self._attr_native_unit_of_measurement = "CNY/m³"
 

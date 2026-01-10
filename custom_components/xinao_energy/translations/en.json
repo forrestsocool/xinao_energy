@@ -31,5 +31,82 @@
         }
       }
     }
+  },
+  "entity": {
+    "sensor": {
+      "balance": {
+        "name": "Balance",
+        "state_attributes": {
+          "last_month_balance": {
+            "name": "Last Month Balance"
+          }
+        }
+      },
+      "arrears_amount": {
+        "name": "Arrears Amount"
+      },
+      "current_month_usage": {
+        "name": "Current Month Usage",
+        "state_attributes": {
+          "ladder_cycle": {
+            "name": "Ladder Cycle"
+          }
+        }
+      },
+      "current_month_cost": {
+        "name": "Current Month Cost",
+        "state_attributes": {
+          "ladder_cycle": {
+            "name": "Ladder Cycle"
+          },
+          "estimated_cost": {
+            "name": "Estimated Cost"
+          }
+        }
+      },
+      "total_gas_count": {
+        "name": "Total Gas Count"
+      },
+      "available_days": {
+        "name": "Available Days"
+      },
+      "daily_usage": {
+        "name": "Daily Usage",
+        "state_attributes": {
+          "history": {
+            "name": "History"
+          },
+          "total_days": {
+            "name": "Total Days"
+          },
+          "average_usage": {
+            "name": "Average Usage"
+          },
+          "max_usage": {
+            "name": "Max Usage"
+          },
+          "min_usage": {
+            "name": "Min Usage"
+          },
+          "total_usage": {
+            "name": "Total Usage"
+          }
+        }
+      },
+      "ladder_price": {
+        "name": "Ladder Price",
+        "state_attributes": {
+          "ladder_tiers": {
+            "name": "Ladder Tiers"
+          },
+          "total_tiers": {
+            "name": "Total Tiers"
+          },
+          "cycle_description": {
+            "name": "Cycle Description"
+          }
+        }
+      }
+    }
   }
 }
