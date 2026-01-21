@@ -53,3 +53,6 @@ test_energy_analysis.py
 api.js
 flows.json
 .claude/settings.local.json
+
+test_xinao_gas.py
+test_refresh_token.py
