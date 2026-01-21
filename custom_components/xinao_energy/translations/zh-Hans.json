@@ -2,23 +2,35 @@
   "config": {
     "step": {
       "user": {
-        "title": "新奥燃气能源分析",
-        "description": "配置您的新奥燃气账户",
+        "title": "新奥燃气",
+        "description": "配置您的新奥燃气表",
         "data": {
           "token": "令牌 (Token)",
-          "payment_no": "缴费号",
-          "company_code": "公司代码",
+          "device_id": "设备 ID",
+          "city_id": "城市 ID",
+          "update_interval": "更新间隔（分钟）"
+        }
+      },
+      "reconfigure": {
+        "title": "重新配置新奥燃气",
+        "description": "更新您的新奥燃气设置",
+        "data": {
+          "token": "令牌 (Token)",
+          "device_id": "设备 ID",
+          "city_id": "城市 ID",
           "update_interval": "更新间隔（分钟）"
         }
       }
     },
     "error": {
       "cannot_connect": "无法连接到新奥燃气 API",
-      "invalid_auth": "无效的认证凭据",
+      "invalid_auth": "认证信息无效",
       "unknown": "发生未知错误"
     },
     "abort": {
-      "already_configured": "此缴费号已配置"
+      "already_configured": "该设备已配置",
+      "reconfigure_successful": "配置更新成功",
+      "reconfigure_failed": "重新配置失败"
     }
   },
   "options": {
@@ -35,77 +47,48 @@
   "entity": {
     "sensor": {
       "balance": {
-        "name": "余额",
+        "name": "账户余额"
+      },
+      "gas_price": {
+        "name": "当前气价"
+      },
+      "today_cost": {
+        "name": "今日花费",
         "state_attributes": {
-          "last_month_balance": {
-            "name": "上月余额"
+          "current_balance": {
+            "name": "当前余额"
           }
         }
       },
-      "arrears_amount": {
-        "name": "欠费金额"
-      },
-      "current_month_usage": {
-        "name": "本月用气量",
+      "today_usage": {
+        "name": "今日用量",
         "state_attributes": {
-          "ladder_cycle": {
-            "name": "阶梯周期"
+          "gas_price": {
+            "name": "气价"
           }
         }
       },
-      "current_month_cost": {
-        "name": "本月燃气费",
+      "monthly_cost": {
+        "name": "当月花费",
         "state_attributes": {
-          "ladder_cycle": {
-            "name": "阶梯周期"
-          },
-          "estimated_cost": {
-            "name": "预估费用"
+          "current_balance": {
+            "name": "当前余额"
           }
         }
       },
-      "total_gas_count": {
-        "name": "累计用气量"
-      },
-      "available_days": {
-        "name": "可用天数"
-      },
-      "daily_usage": {
-        "name": "每日用气量",
+      "monthly_usage": {
+        "name": "当月用量",
         "state_attributes": {
-          "history": {
-            "name": "历史记录"
-          },
-          "total_days": {
-            "name": "总天数"
-          },
-          "average_usage": {
-            "name": "平均用量"
-          },
-          "max_usage": {
-            "name": "最大用量"
-          },
-          "min_usage": {
-            "name": "最小用量"
-          },
-          "total_usage": {
-            "name": "总用量"
+          "gas_price": {
+            "name": "气价"
           }
         }
       },
-      "ladder_price": {
-        "name": "阶梯气价",
-        "state_attributes": {
-          "ladder_tiers": {
-            "name": "阶梯档位"
-          },
-          "total_tiers": {
-            "name": "档位数量"
-          },
-          "cycle_description": {
-            "name": "周期说明"
-          }
-        }
+      "last_recharge": {
+        "name": "最近充值"
+      },
+      "last_recharge_time": {
+        "name": "充值时间"
       }
     }
   }

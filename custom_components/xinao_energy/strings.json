@@ -2,12 +2,22 @@
   "config": {
     "step": {
       "user": {
-        "title": "Xinao Energy Analysis",
-        "description": "Configure your Xinao Energy account",
+        "title": "Xinao Energy",
+        "description": "Configure your Xinao Energy gas meter",
         "data": {
           "token": "Token",
-          "payment_no": "Payment Number",
-          "company_code": "Company Code",
+          "device_id": "Device ID",
+          "city_id": "City ID",
+          "update_interval": "Update Interval (minutes)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Xinao Energy",
+        "description": "Update your Xinao Energy settings",
+        "data": {
+          "token": "Token",
+          "device_id": "Device ID",
+          "city_id": "City ID",
           "update_interval": "Update Interval (minutes)"
         }
       }
@@ -18,7 +28,9 @@
       "unknown": "Unexpected error occurred"
     },
     "abort": {
-      "already_configured": "This payment number is already configured"
+      "already_configured": "This device is already configured",
+      "reconfigure_successful": "Configuration updated successfully",
+      "reconfigure_failed": "Failed to reconfigure"
     }
   },
   "options": {
@@ -35,77 +47,48 @@
   "entity": {
     "sensor": {
       "balance": {
-        "name": "Balance",
+        "name": "Balance"
+      },
+      "gas_price": {
+        "name": "Gas Price"
+      },
+      "today_cost": {
+        "name": "Today Cost",
         "state_attributes": {
-          "last_month_balance": {
-            "name": "Last Month Balance"
+          "current_balance": {
+            "name": "Current Balance"
           }
         }
       },
-      "arrears_amount": {
-        "name": "Arrears Amount"
-      },
-      "current_month_usage": {
-        "name": "Current Month Usage",
+      "today_usage": {
+        "name": "Today Usage",
         "state_attributes": {
-          "ladder_cycle": {
-            "name": "Ladder Cycle"
+          "gas_price": {
+            "name": "Gas Price"
           }
         }
       },
-      "current_month_cost": {
-        "name": "Current Month Cost",
+      "monthly_cost": {
+        "name": "Monthly Cost",
         "state_attributes": {
-          "ladder_cycle": {
-            "name": "Ladder Cycle"
-          },
-          "estimated_cost": {
-            "name": "Estimated Cost"
+          "current_balance": {
+            "name": "Current Balance"
           }
         }
       },
-      "total_gas_count": {
-        "name": "Total Gas Count"
-      },
-      "available_days": {
-        "name": "Available Days"
-      },
-      "daily_usage": {
-        "name": "Daily Usage",
+      "monthly_usage": {
+        "name": "Monthly Usage",
         "state_attributes": {
-          "history": {
-            "name": "History"
-          },
-          "total_days": {
-            "name": "Total Days"
-          },
-          "average_usage": {
-            "name": "Average Usage"
-          },
-          "max_usage": {
-            "name": "Max Usage"
-          },
-          "min_usage": {
-            "name": "Min Usage"
-          },
-          "total_usage": {
-            "name": "Total Usage"
+          "gas_price": {
+            "name": "Gas Price"
           }
         }
       },
-      "ladder_price": {
-        "name": "Ladder Price",
-        "state_attributes": {
-          "ladder_tiers": {
-            "name": "Ladder Tiers"
-          },
-          "total_tiers": {
-            "name": "Total Tiers"
-          },
-          "cycle_description": {
-            "name": "Cycle Description"
-          }
-        }
+      "last_recharge": {
+        "name": "Last Recharge"
+      },
+      "last_recharge_time": {
+        "name": "Last Recharge Time"
       }
     }
   }
