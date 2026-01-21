@@ -147,26 +147,85 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         """Get current month string."""
         return datetime.now().strftime("%Y-%m")
 
-    def _process_orders(
+    def _parse_order_date(self, order: dict) -> str | None:
+        """Parse order date from orderTime field like '2026.01.10 14:52'."""
+        order_time_str = order.get("orderTime", "")
+        if order_time_str:
+            try:
+                # Parse "2026.01.10 14:52" format and return date part
+                dt = datetime.strptime(order_time_str, "%Y.%m.%d %H:%M")
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                pass
+        return None
+
+    def _parse_order_month(self, order: dict) -> str | None:
+        """Parse order month from orderTime field."""
+        order_time_str = order.get("orderTime", "")
+        if order_time_str:
+            try:
+                dt = datetime.strptime(order_time_str, "%Y.%m.%d %H:%M")
+                return dt.strftime("%Y-%m")
+            except ValueError:
+                pass
+        return None
+
+    def _process_orders_for_date(
         self,
         orders: list[dict],
+        target_date: str,
         processed_ids: list[int],
     ) -> tuple[float, list[int]]:
-        """Process new orders and return total recharge amount and updated processed IDs."""
+        """Process orders for a specific date and return total recharge amount."""
         total_recharge = 0.0
         new_processed_ids = processed_ids.copy()
 
         for order in orders:
             order_id = order.get("orderId")
-            if order_id and order_id not in processed_ids:
+            order_date = self._parse_order_date(order)
+            
+            # Only process orders from the target date that haven't been processed
+            if order_id and order_date == target_date and order_id not in processed_ids:
                 try:
                     amount = float(order.get("numDesc", "0"))
                     total_recharge += amount
                     new_processed_ids.append(order_id)
                     _LOGGER.debug(
-                        "Processed new recharge order %s: %.2f CNY",
+                        "Processed daily recharge order %s: %.2f CNY (date: %s)",
                         order_id,
                         amount,
+                        order_date,
+                    )
+                except (ValueError, TypeError):
+                    _LOGGER.warning("Invalid order amount: %s", order.get("numDesc"))
+
+        return total_recharge, new_processed_ids
+
+    def _process_orders_for_month(
+        self,
+        orders: list[dict],
+        target_month: str,
+        processed_ids: list[int],
+    ) -> tuple[float, list[int]]:
+        """Process orders for a specific month and return total recharge amount."""
+        total_recharge = 0.0
+        new_processed_ids = processed_ids.copy()
+
+        for order in orders:
+            order_id = order.get("orderId")
+            order_month = self._parse_order_month(order)
+            
+            # Only process orders from the target month that haven't been processed
+            if order_id and order_month == target_month and order_id not in processed_ids:
+                try:
+                    amount = float(order.get("numDesc", "0"))
+                    total_recharge += amount
+                    new_processed_ids.append(order_id)
+                    _LOGGER.debug(
+                        "Processed monthly recharge order %s: %.2f CNY (month: %s)",
+                        order_id,
+                        amount,
+                        order_month,
                     )
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid order amount: %s", order.get("numDesc"))
@@ -223,16 +282,16 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                     "processed_order_ids": [],
                 }
 
-            # Process new orders for daily tracking
-            daily_recharge, daily_processed = self._process_orders(
-                orders, daily_data.get("processed_order_ids", [])
+            # Process new orders for daily tracking (only today's orders)
+            daily_recharge, daily_processed = self._process_orders_for_date(
+                orders, current_date, daily_data.get("processed_order_ids", [])
             )
             daily_data["recharge_total"] = daily_data.get("recharge_total", 0) + daily_recharge
             daily_data["processed_order_ids"] = daily_processed
 
-            # Process new orders for monthly tracking
-            monthly_recharge, monthly_processed = self._process_orders(
-                orders, monthly_data.get("processed_order_ids", [])
+            # Process new orders for monthly tracking (only this month's orders)
+            monthly_recharge, monthly_processed = self._process_orders_for_month(
+                orders, current_month, monthly_data.get("processed_order_ids", [])
             )
             monthly_data["recharge_total"] = monthly_data.get("recharge_total", 0) + monthly_recharge
             monthly_data["processed_order_ids"] = monthly_processed
@@ -265,9 +324,10 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                     # Parse orderTime like "2026.01.10 14:52"
                     order_time_str = last_order.get("orderTime", "")
                     if order_time_str:
+                        # Return datetime object for HA timestamp sensor
                         last_recharge_time = datetime.strptime(
                             order_time_str, "%Y.%m.%d %H:%M"
-                        ).isoformat()
+                        )
                 except (ValueError, TypeError) as err:
                     _LOGGER.warning("Failed to parse last recharge info: %s", err)
 
