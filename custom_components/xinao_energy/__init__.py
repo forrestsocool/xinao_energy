@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -26,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-STORAGE_VERSION = 1
+STORAGE_VERSION = 2  # Bump version to force re-init
 STORAGE_KEY = f"{DOMAIN}_data"
 
 
@@ -147,27 +147,37 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         """Get current month string."""
         return datetime.now().strftime("%Y-%m")
 
-    def _parse_order_date(self, order: dict) -> str | None:
-        """Parse order date from orderTime field like '2026.01.10 14:52'."""
-        order_time_str = order.get("orderTime", "")
-        if order_time_str:
+    def _parse_create_time(self, order: dict) -> datetime | None:
+        """Parse createTime field (ISO format like '2026-01-10T06:52:17.000+00:00')."""
+        create_time_str = order.get("createTime", "")
+        if create_time_str:
             try:
-                # Parse "2026.01.10 14:52" format and return date part
-                dt = datetime.strptime(order_time_str, "%Y.%m.%d %H:%M")
-                return dt.strftime("%Y-%m-%d")
+                # Parse ISO format with timezone
+                # Handle format: "2026-01-10T06:52:17.000+00:00"
+                dt = datetime.fromisoformat(create_time_str.replace("+00:00", "+0000"))
+                return dt
             except ValueError:
-                pass
+                try:
+                    # Fallback: try without milliseconds
+                    dt = datetime.strptime(create_time_str[:19], "%Y-%m-%dT%H:%M:%S")
+                    return dt
+                except ValueError:
+                    pass
         return None
 
-    def _parse_order_month(self, order: dict) -> str | None:
-        """Parse order month from orderTime field."""
-        order_time_str = order.get("orderTime", "")
-        if order_time_str:
-            try:
-                dt = datetime.strptime(order_time_str, "%Y.%m.%d %H:%M")
-                return dt.strftime("%Y-%m")
-            except ValueError:
-                pass
+    def _get_order_date(self, order: dict) -> str | None:
+        """Get order date string from createTime."""
+        dt = self._parse_create_time(order)
+        if dt:
+            # Convert to local date
+            return dt.strftime("%Y-%m-%d")
+        return None
+
+    def _get_order_month(self, order: dict) -> str | None:
+        """Get order month string from createTime."""
+        dt = self._parse_create_time(order)
+        if dt:
+            return dt.strftime("%Y-%m")
         return None
 
     def _process_orders_for_date(
@@ -182,7 +192,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
 
         for order in orders:
             order_id = order.get("orderId")
-            order_date = self._parse_order_date(order)
+            order_date = self._get_order_date(order)
             
             # Only process orders from the target date that haven't been processed
             if order_id and order_date == target_date and order_id not in processed_ids:
@@ -213,7 +223,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
 
         for order in orders:
             order_id = order.get("orderId")
-            order_month = self._parse_order_month(order)
+            order_month = self._get_order_month(order)
             
             # Only process orders from the target month that haven't been processed
             if order_id and order_month == target_month and order_id not in processed_ids:
@@ -261,7 +271,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             # Initialize daily data if needed
             daily_data = stored_data.get("daily", {})
             if daily_data.get("date") != current_date:
-                # New day - reset daily data
+                # New day - reset daily data with current balance as start
                 _LOGGER.info("New day detected, resetting daily data")
                 daily_data = {
                     "date": current_date,
@@ -273,7 +283,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             # Initialize monthly data if needed
             monthly_data = stored_data.get("monthly", {})
             if monthly_data.get("month") != current_month:
-                # New month - reset monthly data
+                # New month - reset monthly data with current balance as start
                 _LOGGER.info("New month detected, resetting monthly data")
                 monthly_data = {
                     "month": current_month,
@@ -297,6 +307,8 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             monthly_data["processed_order_ids"] = monthly_processed
 
             # Calculate today's cost and usage
+            # Formula: cost = start_balance - current_balance + recharges_during_period
+            # This correctly accounts for: consumed amount = what we had - what we have now + what we added
             today_cost = max(
                 0,
                 daily_data.get("start_balance", balance)
@@ -314,20 +326,15 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             )
             monthly_usage = monthly_cost / gas_price if gas_price > 0 else 0
 
-            # Get last recharge info
+            # Get last recharge info - use createTime (ISO format)
             last_recharge = None
             last_recharge_time = None
             if orders:
                 last_order = orders[0]  # Most recent order
                 try:
                     last_recharge = float(last_order.get("numDesc", "0"))
-                    # Parse orderTime like "2026.01.10 14:52"
-                    order_time_str = last_order.get("orderTime", "")
-                    if order_time_str:
-                        # Return datetime object for HA timestamp sensor
-                        last_recharge_time = datetime.strptime(
-                            order_time_str, "%Y.%m.%d %H:%M"
-                        )
+                    # Use createTime field (ISO format)
+                    last_recharge_time = self._parse_create_time(last_order)
                 except (ValueError, TypeError) as err:
                     _LOGGER.warning("Failed to parse last recharge info: %s", err)
 
