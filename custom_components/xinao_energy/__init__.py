@@ -193,6 +193,9 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
 
         try:
             start_dt = datetime.fromisoformat(start_time)
+            # Make sure start_dt is naive (no timezone)
+            if start_dt.tzinfo is not None:
+                start_dt = start_dt.replace(tzinfo=None)
         except ValueError:
             _LOGGER.warning("Invalid start_time format: %s", start_time)
             return 0.0, processed_ids
@@ -203,11 +206,17 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             
             if order_id is None or order_dt is None:
                 continue
+            
+            # Make order_dt naive for comparison
+            if order_dt.tzinfo is not None:
+                order_dt_naive = order_dt.replace(tzinfo=None)
+            else:
+                order_dt_naive = order_dt
                 
             # Only process orders that:
             # 1. Happened AFTER start_time
             # 2. Haven't been processed yet
-            if order_dt > start_dt and order_id not in processed_ids:
+            if order_dt_naive > start_dt and order_id not in processed_ids:
                 try:
                     amount = float(order.get("numDesc", "0"))
                     total_recharge += amount
