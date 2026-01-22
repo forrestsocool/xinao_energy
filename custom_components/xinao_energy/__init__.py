@@ -153,12 +153,30 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         if create_time_str:
             try:
                 # Parse ISO format - handle various formats
-                # Remove milliseconds and timezone for simpler parsing
-                clean_str = create_time_str.replace("+00:00", "").replace("Z", "")
+                # Remove milliseconds for simpler parsing
+                clean_str = create_time_str
                 if "." in clean_str:
-                    clean_str = clean_str.split(".")[0]
-                dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
-                return dt
+                    # Split at . and keep the timezone part
+                    parts = clean_str.split(".")
+                    base = parts[0]
+                    # Find timezone in the second part
+                    tz_part = ""
+                    if "+" in parts[1]:
+                        tz_part = "+" + parts[1].split("+")[1]
+                    elif "-" in parts[1]:
+                        tz_part = "-" + parts[1].split("-")[1]
+                    clean_str = base + tz_part
+                
+                # Try parsing with timezone
+                if "+00:00" in clean_str or "Z" in clean_str:
+                    clean_str = clean_str.replace("Z", "+00:00")
+                    # Parse and convert to local time with timezone info
+                    dt = datetime.fromisoformat(clean_str)
+                    return dt
+                else:
+                    # No timezone, parse as local time
+                    dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
+                    return dt
             except ValueError as e:
                 _LOGGER.warning("Failed to parse createTime '%s': %s", create_time_str, e)
         return None
