@@ -24,7 +24,7 @@
     },
     "error": {
       "cannot_connect": "Failed to connect to XinAo Energy API",
-      "invalid_auth": "Invalid authentication credenAtials",
+      "invalid_auth": "Invalid authentication credentials",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
