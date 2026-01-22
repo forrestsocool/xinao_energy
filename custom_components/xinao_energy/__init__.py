@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -26,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-STORAGE_VERSION = 2  # Bump version to force re-init
+STORAGE_VERSION = 3  # Bump version to force re-init with new start_time tracking
 STORAGE_KEY = f"{DOMAIN}_data"
 
 
@@ -152,90 +152,53 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         create_time_str = order.get("createTime", "")
         if create_time_str:
             try:
-                # Parse ISO format with timezone
-                # Handle format: "2026-01-10T06:52:17.000+00:00"
-                dt = datetime.fromisoformat(create_time_str.replace("+00:00", "+0000"))
+                # Parse ISO format - handle various formats
+                # Remove milliseconds and timezone for simpler parsing
+                clean_str = create_time_str.replace("+00:00", "").replace("Z", "")
+                if "." in clean_str:
+                    clean_str = clean_str.split(".")[0]
+                dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
                 return dt
-            except ValueError:
-                try:
-                    # Fallback: try without milliseconds
-                    dt = datetime.strptime(create_time_str[:19], "%Y-%m-%dT%H:%M:%S")
-                    return dt
-                except ValueError:
-                    pass
+            except ValueError as e:
+                _LOGGER.warning("Failed to parse createTime '%s': %s", create_time_str, e)
         return None
 
-    def _get_order_date(self, order: dict) -> str | None:
-        """Get order date string from createTime."""
-        dt = self._parse_create_time(order)
-        if dt:
-            # Convert to local date
-            return dt.strftime("%Y-%m-%d")
-        return None
-
-    def _get_order_month(self, order: dict) -> str | None:
-        """Get order month string from createTime."""
-        dt = self._parse_create_time(order)
-        if dt:
-            return dt.strftime("%Y-%m")
-        return None
-
-    def _process_orders_for_date(
+    def _process_orders_after_time(
         self,
         orders: list[dict],
-        target_date: str,
+        start_time: str,
         processed_ids: list[int],
     ) -> tuple[float, list[int]]:
-        """Process orders for a specific date and return total recharge amount."""
+        """Process orders that occurred after start_time."""
         total_recharge = 0.0
         new_processed_ids = processed_ids.copy()
 
+        try:
+            start_dt = datetime.fromisoformat(start_time)
+        except ValueError:
+            _LOGGER.warning("Invalid start_time format: %s", start_time)
+            return 0.0, processed_ids
+
         for order in orders:
             order_id = order.get("orderId")
-            order_date = self._get_order_date(order)
+            order_dt = self._parse_create_time(order)
             
-            # Only process orders from the target date that haven't been processed
-            if order_id and order_date == target_date and order_id not in processed_ids:
+            if order_id is None or order_dt is None:
+                continue
+                
+            # Only process orders that:
+            # 1. Happened AFTER start_time
+            # 2. Haven't been processed yet
+            if order_dt > start_dt and order_id not in processed_ids:
                 try:
                     amount = float(order.get("numDesc", "0"))
                     total_recharge += amount
                     new_processed_ids.append(order_id)
                     _LOGGER.debug(
-                        "Processed daily recharge order %s: %.2f CNY (date: %s)",
+                        "Processed recharge order %s: %.2f CNY (time: %s)",
                         order_id,
                         amount,
-                        order_date,
-                    )
-                except (ValueError, TypeError):
-                    _LOGGER.warning("Invalid order amount: %s", order.get("numDesc"))
-
-        return total_recharge, new_processed_ids
-
-    def _process_orders_for_month(
-        self,
-        orders: list[dict],
-        target_month: str,
-        processed_ids: list[int],
-    ) -> tuple[float, list[int]]:
-        """Process orders for a specific month and return total recharge amount."""
-        total_recharge = 0.0
-        new_processed_ids = processed_ids.copy()
-
-        for order in orders:
-            order_id = order.get("orderId")
-            order_month = self._get_order_month(order)
-            
-            # Only process orders from the target month that haven't been processed
-            if order_id and order_month == target_month and order_id not in processed_ids:
-                try:
-                    amount = float(order.get("numDesc", "0"))
-                    total_recharge += amount
-                    new_processed_ids.append(order_id)
-                    _LOGGER.debug(
-                        "Processed monthly recharge order %s: %.2f CNY (month: %s)",
-                        order_id,
-                        amount,
-                        order_month,
+                        order_dt.isoformat(),
                     )
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid order amount: %s", order.get("numDesc"))
@@ -267,14 +230,16 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             # Get current date and month
             current_date = self._get_current_date()
             current_month = self._get_current_month()
+            now_iso = datetime.now().isoformat()
 
             # Initialize daily data if needed
             daily_data = stored_data.get("daily", {})
             if daily_data.get("date") != current_date:
-                # New day - reset daily data with current balance as start
+                # New day - reset daily data with current time as start
                 _LOGGER.info("New day detected, resetting daily data")
                 daily_data = {
                     "date": current_date,
+                    "start_time": now_iso,  # Track when we started
                     "start_balance": balance,
                     "recharge_total": 0.0,
                     "processed_order_ids": [],
@@ -283,32 +248,34 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             # Initialize monthly data if needed
             monthly_data = stored_data.get("monthly", {})
             if monthly_data.get("month") != current_month:
-                # New month - reset monthly data with current balance as start
+                # New month - reset monthly data with current time as start
                 _LOGGER.info("New month detected, resetting monthly data")
                 monthly_data = {
                     "month": current_month,
+                    "start_time": now_iso,  # Track when we started
                     "start_balance": balance,
                     "recharge_total": 0.0,
                     "processed_order_ids": [],
                 }
 
-            # Process new orders for daily tracking (only today's orders)
-            daily_recharge, daily_processed = self._process_orders_for_date(
-                orders, current_date, daily_data.get("processed_order_ids", [])
+            # Process orders for daily tracking (only orders AFTER daily start_time)
+            daily_start_time = daily_data.get("start_time", now_iso)
+            daily_recharge, daily_processed = self._process_orders_after_time(
+                orders, daily_start_time, daily_data.get("processed_order_ids", [])
             )
             daily_data["recharge_total"] = daily_data.get("recharge_total", 0) + daily_recharge
             daily_data["processed_order_ids"] = daily_processed
 
-            # Process new orders for monthly tracking (only this month's orders)
-            monthly_recharge, monthly_processed = self._process_orders_for_month(
-                orders, current_month, monthly_data.get("processed_order_ids", [])
+            # Process orders for monthly tracking (only orders AFTER monthly start_time)
+            monthly_start_time = monthly_data.get("start_time", now_iso)
+            monthly_recharge, monthly_processed = self._process_orders_after_time(
+                orders, monthly_start_time, monthly_data.get("processed_order_ids", [])
             )
             monthly_data["recharge_total"] = monthly_data.get("recharge_total", 0) + monthly_recharge
             monthly_data["processed_order_ids"] = monthly_processed
 
             # Calculate today's cost and usage
-            # Formula: cost = start_balance - current_balance + recharges_during_period
-            # This correctly accounts for: consumed amount = what we had - what we have now + what we added
+            # cost = start_balance - current_balance + recharges_since_start
             today_cost = max(
                 0,
                 daily_data.get("start_balance", balance)
@@ -326,14 +293,13 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             )
             monthly_usage = monthly_cost / gas_price if gas_price > 0 else 0
 
-            # Get last recharge info - use createTime (ISO format)
+            # Get last recharge info
             last_recharge = None
             last_recharge_time = None
             if orders:
                 last_order = orders[0]  # Most recent order
                 try:
                     last_recharge = float(last_order.get("numDesc", "0"))
-                    # Use createTime field (ISO format)
                     last_recharge_time = self._parse_create_time(last_order)
                 except (ValueError, TypeError) as err:
                     _LOGGER.warning("Failed to parse last recharge info: %s", err)
@@ -343,7 +309,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                 "daily": daily_data,
                 "monthly": monthly_data,
                 "last_balance": balance,
-                "last_update": datetime.now().isoformat(),
+                "last_update": now_iso,
             }
             await self._async_save_stored_data()
 
