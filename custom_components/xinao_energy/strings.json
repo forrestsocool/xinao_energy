@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Xinao Energy",
-        "description": "Configure your Xinao Energy gas meter",
+        "title": "XinAo Energy",
+        "description": "Configure your XinAo Energy gas meter",
         "data": {
           "token": "Token",
           "device_id": "Device ID",
@@ -12,8 +12,8 @@
         }
       },
       "reconfigure": {
-        "title": "Reconfigure Xinao Energy",
-        "description": "Update your Xinao Energy settings",
+        "title": "Reconfigure XinAo Energy",
+        "description": "Update your XinAo Energy settings",
         "data": {
           "token": "Token",
           "device_id": "Device ID",
@@ -23,8 +23,8 @@
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to Xinao Energy API",
-      "invalid_auth": "Invalid authentication credentials",
+      "cannot_connect": "Failed to connect to XinAo Energy API",
+      "invalid_auth": "Invalid authentication credenAtials",
       "unknown": "Unexpected error occurred"
     },
     "abort": {
@@ -36,7 +36,7 @@
   "options": {
     "step": {
       "init": {
-        "title": "Xinao Energy Options",
+        "title": "XinAo Energy Options",
         "description": "Configure update settings",
         "data": {
           "update_interval": "Update Interval (minutes)"
