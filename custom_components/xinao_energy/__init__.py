@@ -26,7 +26,8 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-STORAGE_VERSION = 4  # v4: Fix UTC timezone issue in order time comparison
+STORAGE_VERSION = 3  # Keep at 3 for Store compatibility
+STORAGE_MINOR_VERSION = 4  # v4: Fix UTC timezone issue in order time comparison
 STORAGE_KEY = f"{DOMAIN}_data"
 
 
@@ -140,12 +141,12 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             if loaded_data is None:
                 # No existing data
                 self._stored_data = {}
-            elif loaded_data.get("_version") != STORAGE_VERSION:
+            elif loaded_data.get("_minor_version", 3) < STORAGE_MINOR_VERSION:
                 # Migration from older version: keep start_balance, clear order IDs
                 _LOGGER.info(
-                    "Migrating storage data from v%s to v%s (fixing UTC timezone issue)",
-                    loaded_data.get("_version", "unknown"),
-                    STORAGE_VERSION,
+                    "Migrating storage data from minor v%s to v%s (fixing UTC timezone issue)",
+                    loaded_data.get("_minor_version", "unknown"),
+                    STORAGE_MINOR_VERSION,
                 )
                 
                 daily_data = loaded_data.get("daily", {})
@@ -176,7 +177,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                     "monthly": monthly_data,
                     "last_balance": loaded_data.get("last_balance"),
                     "last_update": loaded_data.get("last_update"),
-                    "_version": STORAGE_VERSION,
+                    "_minor_version": STORAGE_MINOR_VERSION,
                 }
                 
                 # Save migrated data
@@ -400,7 +401,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                 "monthly": monthly_data,
                 "last_balance": balance,
                 "last_update": now_iso,
-                "_version": STORAGE_VERSION,
+                "_minor_version": STORAGE_MINOR_VERSION,
             }
             await self._async_save_stored_data()
 
