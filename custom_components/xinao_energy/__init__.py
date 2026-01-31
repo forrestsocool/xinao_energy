@@ -26,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
-STORAGE_VERSION = 3  # Bump version to force re-init with new start_time tracking
+STORAGE_VERSION = 4  # v4: Fix UTC timezone issue in order time comparison
 STORAGE_KEY = f"{DOMAIN}_data"
 
 
@@ -129,9 +129,61 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_load_stored_data(self) -> dict[str, Any]:
-        """Load stored data from disk."""
+        """Load stored data from disk.
+        
+        If upgrading from v3, migrate data by clearing processed_order_ids
+        to re-process orders with fixed UTC timezone handling.
+        """
         if self._stored_data is None:
-            self._stored_data = await self.store.async_load() or {}
+            loaded_data = await self.store.async_load()
+            
+            if loaded_data is None:
+                # No existing data
+                self._stored_data = {}
+            elif loaded_data.get("_version") != STORAGE_VERSION:
+                # Migration from older version: keep start_balance, clear order IDs
+                _LOGGER.info(
+                    "Migrating storage data from v%s to v%s (fixing UTC timezone issue)",
+                    loaded_data.get("_version", "unknown"),
+                    STORAGE_VERSION,
+                )
+                
+                daily_data = loaded_data.get("daily", {})
+                monthly_data = loaded_data.get("monthly", {})
+                
+                # Keep start_balance and start_time, but clear processed orders
+                # This allows re-processing with fixed timezone handling
+                if daily_data:
+                    daily_data["processed_order_ids"] = []
+                    daily_data["recharge_total"] = 0.0
+                    _LOGGER.info(
+                        "Daily data migrated: keeping start_balance=%.2f, start_time=%s",
+                        daily_data.get("start_balance", 0),
+                        daily_data.get("start_time", "unknown"),
+                    )
+                
+                if monthly_data:
+                    monthly_data["processed_order_ids"] = []
+                    monthly_data["recharge_total"] = 0.0
+                    _LOGGER.info(
+                        "Monthly data migrated: keeping start_balance=%.2f, start_time=%s",
+                        monthly_data.get("start_balance", 0),
+                        monthly_data.get("start_time", "unknown"),
+                    )
+                
+                self._stored_data = {
+                    "daily": daily_data,
+                    "monthly": monthly_data,
+                    "last_balance": loaded_data.get("last_balance"),
+                    "last_update": loaded_data.get("last_update"),
+                    "_version": STORAGE_VERSION,
+                }
+                
+                # Save migrated data
+                await self._async_save_stored_data()
+            else:
+                self._stored_data = loaded_data
+                
         return self._stored_data
 
     async def _async_save_stored_data(self) -> None:
@@ -148,7 +200,10 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         return datetime.now().strftime("%Y-%m")
 
     def _parse_create_time(self, order: dict) -> datetime | None:
-        """Parse createTime field (ISO format like '2026-01-10T06:52:17.000+00:00')."""
+        """Parse createTime field (ISO format like '2026-01-10T06:52:17.000+00:00').
+        
+        The API returns UTC time, we need to convert to local time for comparison.
+        """
         create_time_str = order.get("createTime", "")
         if create_time_str:
             try:
@@ -170,9 +225,17 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                 # Try parsing with timezone
                 if "+00:00" in clean_str or "Z" in clean_str:
                     clean_str = clean_str.replace("Z", "+00:00")
-                    # Parse and convert to local time with timezone info
-                    dt = datetime.fromisoformat(clean_str)
-                    return dt
+                    # Parse UTC time and convert to local time
+                    dt_utc = datetime.fromisoformat(clean_str)
+                    # Convert to local time by adding 8 hours (Beijing timezone)
+                    # This is a simple fix; for production, consider using proper timezone handling
+                    dt_local = dt_utc.replace(tzinfo=None) + timedelta(hours=8)
+                    _LOGGER.debug(
+                        "Converted order time from UTC %s to local %s",
+                        clean_str,
+                        dt_local.isoformat(),
+                    )
+                    return dt_local
                 else:
                     # No timezone, parse as local time
                     dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
@@ -337,6 +400,7 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                 "monthly": monthly_data,
                 "last_balance": balance,
                 "last_update": now_iso,
+                "_version": STORAGE_VERSION,
             }
             await self._async_save_stored_data()
 
