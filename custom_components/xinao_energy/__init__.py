@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 STORAGE_VERSION = 3  # Keep at 3 for Store compatibility
-STORAGE_MINOR_VERSION = 4  # v4: Fix UTC timezone issue in order time comparison
+STORAGE_MINOR_VERSION = 5  # v5: Fix timezone handling - always use timezone-aware datetimes
 STORAGE_KEY = f"{DOMAIN}_data"
 
 
@@ -203,7 +203,8 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
     def _parse_create_time(self, order: dict) -> datetime | None:
         """Parse createTime field (ISO format like '2026-01-10T06:52:17.000+00:00').
         
-        The API returns UTC time, we need to convert to local time for comparison.
+        The API returns UTC time. We return a UTC timezone-aware datetime,
+        which HA requires for timestamp sensors.
         """
         create_time_str = order.get("createTime", "")
         if create_time_str:
@@ -226,21 +227,28 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                 # Try parsing with timezone
                 if "+00:00" in clean_str or "Z" in clean_str:
                     clean_str = clean_str.replace("Z", "+00:00")
-                    # Parse UTC time and convert to local time
+                    # Parse UTC time and keep it timezone-aware
                     dt_utc = datetime.fromisoformat(clean_str)
-                    # Convert to local time by adding 8 hours (Beijing timezone)
-                    # This is a simple fix; for production, consider using proper timezone handling
-                    dt_local = dt_utc.replace(tzinfo=None) + timedelta(hours=8)
+                    # Ensure it has UTC timezone info (required for HA timestamp sensors)
+                    if dt_utc.tzinfo is None:
+                        dt_utc = dt_utc.replace(tzinfo=timezone.utc)
                     _LOGGER.debug(
-                        "Converted order time from UTC %s to local %s",
-                        clean_str,
+                        "Parsed order time as UTC: %s",
+                        dt_utc.isoformat(),
+                    )
+                    return dt_utc
+                else:
+                    # No timezone, parse as local time - assume Beijing time (UTC+8)
+                    # and convert to UTC for consistency
+                    dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
+                    # Create Beijing timezone (UTC+8)
+                    beijing_tz = timezone(timedelta(hours=8))
+                    dt_local = dt.replace(tzinfo=beijing_tz)
+                    _LOGGER.debug(
+                        "Parsed order time as local (Beijing): %s",
                         dt_local.isoformat(),
                     )
                     return dt_local
-                else:
-                    # No timezone, parse as local time
-                    dt = datetime.strptime(clean_str, "%Y-%m-%dT%H:%M:%S")
-                    return dt
             except ValueError as e:
                 _LOGGER.warning("Failed to parse createTime '%s': %s", create_time_str, e)
         return None
@@ -255,11 +263,18 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
         total_recharge = 0.0
         new_processed_ids = processed_ids.copy()
 
+        # Beijing timezone (UTC+8) for consistent comparison
+        beijing_tz = timezone(timedelta(hours=8))
+        
         try:
             start_dt = datetime.fromisoformat(start_time)
-            # Make sure start_dt is naive (no timezone)
-            if start_dt.tzinfo is not None:
-                start_dt = start_dt.replace(tzinfo=None)
+            # Convert start_time to Beijing timezone for comparison
+            if start_dt.tzinfo is None:
+                # Naive datetime - assume it's Beijing local time
+                start_dt = start_dt.replace(tzinfo=beijing_tz)
+            else:
+                # Already has timezone - convert to Beijing
+                start_dt = start_dt.astimezone(beijing_tz)
         except ValueError:
             _LOGGER.warning("Invalid start_time format: %s", start_time)
             return 0.0, processed_ids
@@ -271,16 +286,17 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
             if order_id is None or order_dt is None:
                 continue
             
-            # Make order_dt naive for comparison
+            # Convert order_dt to Beijing timezone for comparison
             if order_dt.tzinfo is not None:
-                order_dt_naive = order_dt.replace(tzinfo=None)
+                order_dt_local = order_dt.astimezone(beijing_tz)
             else:
-                order_dt_naive = order_dt
+                # Assume naive datetime is Beijing local time
+                order_dt_local = order_dt.replace(tzinfo=beijing_tz)
                 
             # Only process orders that:
             # 1. Happened AFTER start_time
             # 2. Haven't been processed yet
-            if order_dt_naive > start_dt and order_id not in processed_ids:
+            if order_dt_local > start_dt and order_id not in processed_ids:
                 try:
                     amount = float(order.get("numDesc", "0"))
                     total_recharge += amount
@@ -289,12 +305,13 @@ class XinaoEnergyCoordinator(DataUpdateCoordinator):
                         "Processed recharge order %s: %.2f CNY (time: %s)",
                         order_id,
                         amount,
-                        order_dt.isoformat(),
+                        order_dt_local.isoformat(),
                     )
                 except (ValueError, TypeError):
                     _LOGGER.warning("Invalid order amount: %s", order.get("numDesc"))
 
         return total_recharge, new_processed_ids
+
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library."""
